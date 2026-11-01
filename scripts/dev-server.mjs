@@ -1,4 +1,6 @@
 import http from 'node:http';
+import { createCommunityHandler } from '../api/community.js';
+import { emptyCommunity } from '../lib/community.js';
 import { readFile } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,6 +18,13 @@ const memory = {
 };
 const qa = process.env.CROW_LOCAL_QA === '1' || !process.env.BLOB_READ_WRITE_TOKEN;
 const guestEnv = qa ? { CROW_LOCAL_QA: '1', CROW_INVITE_CODE: 'CROW-DEMO-2026-ONLY', CROW_INVITE_SESSION_SECRET: 'only-for-local-qa-not-a-production-session-secret' } : process.env;
+let communitySaved = emptyCommunity(), communityRevision = 0;
+const communityMemory = {
+ async read() { return { room: structuredClone(communitySaved), etag: String(communityRevision) }; },
+ async write(room, etag) { if (etag !== String(communityRevision)) throw new Error('conflict'); communitySaved = structuredClone(room); communityRevision++; },
+ isConflict: e => e.message === 'conflict',
+};
+const community = createCommunityHandler({ env: guestEnv, ...(qa ? { store: communityMemory } : {}) });
 const invitation = createInvitationHandler({ env: guestEnv });
 const team = qa ? createHandler({ store: memory, env: { CROW_LOCAL_QA: '1' }, background: promise => promise,
   generate: async ({ employee }) => { await new Promise(r => setTimeout(r, 450)); return { text: `LOCAL QA FIXTURE — ${employee.toUpperCase()}\n\nThis is a test response for checking the conversation, work board, and completion flow. No AI model was called. In production this message comes from the configured live AI model.`, model: 'local-qa-fixture' }; }
@@ -27,6 +36,10 @@ const server = http.createServer(async (req, res) => {
     if (decision.redirect) { res.writeHead(decision.status, { Location: decision.redirect, 'Cache-Control': 'no-store' }); res.end(); }
     else { res.writeHead(decision.status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ code: decision.code, privateUrl: decision.privateUrl })); }
     return;
+  }
+  if (url.pathname === '/api/community') {
+    let body = ''; for await (const piece of req) { body += piece; if (body.length > 4096) { res.writeHead(413); res.end('{}'); return; } }
+    req.body = body || undefined; await community(req, res); return;
   }
   if (url.pathname === '/api/invitation') {
     let body = ''; for await (const piece of req) { body += piece; if (body.length > 2048) { res.writeHead(413); res.end('{}'); return; } }

@@ -48,11 +48,11 @@ Required server-only environment settings:
 
 Never place these values in client JavaScript, Git, or query strings. The founder can retrieve and copy the code from `/founder.html` on the existing Vercel-authenticated generated deployment host. The join page links to this founder desk; guests cannot read its invitation response.
 
-A valid code creates a signed, anonymous, HttpOnly/Secure/SameSite browser cookie lasting three days. Middleware checks that cookie before serving the map or its app assets. Sensitive API routes enforce their own access checks too. Logout clears the cookie. Changing the code or signing key and redeploying invalidates existing guest sessions. A missing or invalid configuration fails closed.
+A valid code creates a signed, anonymous, HttpOnly/Secure/SameSite browser cookie with no server-side expiry (browser cookies last up to 400 days and renew on return). Middleware checks that cookie before serving the map or its app assets. Sensitive API routes enforce their own access checks too. Logout clears the cookie. Changing the code or signing key and redeploying invalidates existing guest sessions. A missing or invalid configuration fails closed.
 
 The code is reusable and can be forwarded; it does not establish a person's identity. There is no attendance list, individual account revocation, or one-time-use invitation claim in this database-free version. The in-process failed-code cooldown is supplemental, not a distributed rate limiter. Hosting services may retain their ordinary request logs.
 
-Guest controls are limited to exploring the map and its animated characters in their own browser. Their map state is independent. This gate does not add shared multiplayer presence or community chat. Guest sessions cannot access employee conversations or paid AI runs.
+Guests can create a named pixel character, choose a working or break location, and chat with other invited humans. Presence and recent messages use a separate private Blob snapshot; the client polls every five seconds. Guest sessions cannot access employee conversations or paid AI runs.
 
 ### Founder room access
 
@@ -108,3 +108,13 @@ For real shared presence, add a realtime transport and explicit visitor identity
 | `vercel.json` | Static deployment settings |
 
 The pixel artwork is drawn in canvas with application code. The page also uses Google Fonts with local font fallbacks.
+
+## Human community
+
+Invited guests and the protected founder choose a display name and a generated pixel character. A signed HttpOnly browser profile is bound to the invitation identity. Display names never confer founder privileges. The shared community room uses its own private Blob object, separate from employee conversations. No Supabase or guest account database is required.
+
+The browser polls every five seconds while visible, sends a heartbeat about every 40 seconds, and polls less often in the background. Presence disappears after three minutes without a heartbeat; closing a tab attempts to leave immediately. Browsers can suspend background tabs, so online presence is best-effort while the tab remains open. The invitation itself has no scheduled server expiry. Cookies are renewed on visits and community activity, with a 400-day browser lifetime; clearing cookies, browser retention rules, leaving, or invitation/key rotation can require the code again. Existing unexpired three-day sessions migrate to the new format on return.
+
+Messages appear above the sender for 15 seconds and in the room for 15 minutes, capped at 100 messages. Stale entries are excluded on reads and pruned on the next write; an idle private Blob object can physically retain its last snapshot until the next update. This is a small private room, bounded to 40 concurrent people, with conditional writes to preserve simultaneous sends. It uses polling rather than a WebSocket service. Multiple tabs for one identity count as one person. The same browser on different devices has separate anonymous identities.
+
+Human chat never calls an AI model. Guest requests cannot access the private employee workroom. The founder must enter through the protected deployment host to receive the verified Founder badge.

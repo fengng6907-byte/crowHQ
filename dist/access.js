@@ -2,7 +2,7 @@
 (() => {
   const restricted = new Set(['chat', 'tasks', 'approvals', 'notes']);
   const leave = async () => {
-    try { await fetch('/api/invitation', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'leave' }) }); }
+    try { await window.CrowCommunity?.leave(); await fetch('/api/invitation', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'leave' }) }); }
     finally { location.assign('/join.html'); }
   };
   async function identify() {
@@ -10,6 +10,7 @@
       const response = await fetch('/api/invitation', { cache: 'no-store', credentials: 'same-origin' });
       const data = await response.json();
       if (!response.ok || !['founder', 'guest'].includes(data.role)) { location.replace('/join.html'); return; }
+      window.CrowAccess = data; window.dispatchEvent(new CustomEvent('crow-access-ready', {detail:data}));
       document.body.dataset.access = data.role;
       document.body.classList.toggle('guest-view', data.role !== 'founder');
       const controls = document.createElement('div'); controls.className = 'visit-controls';

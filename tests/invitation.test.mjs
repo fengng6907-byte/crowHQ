@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { accessDecision, configured, cookieName, issueSession, matchesCode, safeNext, SESSION_SECONDS, sessionCookie, verifySession } from '../lib/invitation.js';
@@ -21,18 +22,18 @@ test('the complete deployed world and its assets require an invitation session',
 test('a correct code gives access, but it cannot create a founder session', () => {
   assert.equal(configured(env), true); assert.equal(matchesCode('crow test 2345 abcd 6789', env), true); assert.equal(matchesCode('wrong', env), false);
   const token = issueSession(env, time), claims = verifySession(token, env, time);
-  assert.equal(claims.role, 'guest'); assert.equal(claims.exp - claims.iat, SESSION_SECONDS);
+  assert.equal(claims.role, 'guest'); assert.equal(claims.exp, undefined); assert.equal(claims.v, 2);
   assert.equal(accessDecision(request('/', token), env, time).role, 'guest');
   assert.equal(accessDecision(request('/api/team', token), env, time).status, 403);
   assert.equal(accessDecision(request('/founder.html', token), env, time).allow, false);
   assert.equal(accessDecision(request('/api/another-private-endpoint'), env, time).status, 401);
 });
-test('forged, expired, and revoked sessions fail closed', () => {
+test('sessions have no scheduled expiry; forged and revoked sessions fail closed', () => {
   const token = issueSession(env, time);
   const [payload, signature] = token.split('.');
   const forged = Buffer.from(JSON.stringify({ ...JSON.parse(Buffer.from(payload, 'base64url')), role: 'founder' })).toString('base64url') + '.' + signature;
   assert.equal(verifySession(forged, env, time), null);
-  assert.equal(verifySession(token, env, time + SESSION_SECONDS * 1000), null);
+  assert.equal(verifySession(token, env, time + 50 * 365 * 24 * 3600000).role, 'guest');
   assert.equal(verifySession(token, { ...env, CROW_INVITE_CODE: 'CROW-ANOTHER-SECRET-CODE' }, time), null);
   assert.equal(verifySession(token, { ...env, CROW_INVITE_SESSION_SECRET: 'another-signing-key-with-at-least-32-characters' }, time), null);
   assert.equal(verifySession(token + '.extra', env, time), null);
@@ -53,7 +54,7 @@ test('join validates origin and code and sets a secure HttpOnly guest cookie', a
   const invalid = response(); await handler(joinRequest({ action: 'join', code: 'incorrect' }), invalid); assert.equal(invalid.statusCode, 401); assert.equal(invalid.headers['Set-Cookie'], undefined);
   const accepted = response(); await handler(joinRequest({ action: 'join', code: env.CROW_INVITE_CODE, next: '/' }), accepted);
   assert.equal(accepted.statusCode, 200); assert.equal(accepted.body.role, 'guest'); assert.equal(accepted.body.inviteCode, undefined);
-  const cookie = accepted.headers['Set-Cookie']; assert.match(cookie, /^__Host-crow_guest=/); assert.match(cookie, /HttpOnly/); assert.match(cookie, /Secure/); assert.match(cookie, /SameSite=Lax/); assert.match(cookie, /Max-Age=259200/);
+  const cookie = accepted.headers['Set-Cookie']; assert.match(cookie, /^__Host-crow_guest=/); assert.match(cookie, /HttpOnly/); assert.match(cookie, /Secure/); assert.match(cookie, /SameSite=Lax/); assert.match(cookie, /Max-Age=34560000/);
 });
 test('public session metadata never includes the invitation code, secret, or member data', async () => {
   const handler = createInvitationHandler({ env, now: () => time });
@@ -83,4 +84,14 @@ test('failed-code cooldown is bounded and expires', async () => {
 test('the platform proxy sends an actual redirect without a session', () => {
   const res = proxy(request('/'));
   assert.equal(res.status, 303); assert.match(res.headers.get('location'), /\/join.html/); assert.equal(res.headers.get('cache-control'), 'private, no-store');
+});
+
+test('unexpired legacy visits migrate without changing the guest identity', async () => {
+ const token=issueSession(env,time); const claims=JSON.parse(Buffer.from(token.split('.')[0],'base64url'));
+ claims.v=1;claims.exp=claims.iat+3*24*3600;const payload=Buffer.from(JSON.stringify(claims)).toString('base64url');
+ const legacy=payload+'.'+createHmac('sha256',env.CROW_INVITE_SESSION_SECRET).update(payload).digest('hex');
+ assert.equal(verifySession(legacy,env,time).nonce,claims.nonce);assert.equal(verifySession(legacy,env,time+3*24*3600000),null);
+ const res=response();await createInvitationHandler({env,now:()=>time})({method:'GET',url:'/api/invitation',headers:{host,cookie:cookieName(env)+'='+legacy}},res);
+ const upgraded=res.headers['Set-Cookie'].split(';')[0].split('=')[1];
+ assert.equal(verifySession(upgraded,env,time+50*365*24*3600000).nonce,claims.nonce);assert.equal(res.body.expiresAt,null);
 });

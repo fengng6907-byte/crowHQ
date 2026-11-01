@@ -16,10 +16,11 @@ export function createInvitationHandler({ env = process.env, now = Date.now } = 
         if (action === 'owner') {
           if (!owner) return send(403, { code: 'FOUNDER_ONLY', message: 'Sign in to the founder invitation desk.', founderUrl: ownerUrl });
           if (!configured(env)) return send(503, { message: 'Invitation access has not been configured yet.' });
-          return send(200, { role: 'founder', inviteCode: env.CROW_INVITE_CODE, shareUrl: 'https://crow-hq.vercel.app/', sessionDays: 3 });
+          return send(200, { role: 'founder', inviteCode: env.CROW_INVITE_CODE, shareUrl: 'https://crow-hq.vercel.app/', sessionDays: null });
         }
         const claims = verifySession(cookieValue(req.headers.cookie, env), env, now());
-        return send(200, { role: owner ? 'founder' : claims ? 'guest' : 'visitor', expiresAt: claims ? claims.exp * 1000 : null, founderUrl: ownerUrl, configured: configured(env),
+        if (claims) res.setHeader('Set-Cookie', sessionCookie(issueSession(env, now(), claims.nonce), env));
+        return send(200, { role: owner ? 'founder' : claims ? 'guest' : 'visitor', expiresAt: null, founderUrl: ownerUrl, configured: configured(env),
           ...(env.VERCEL !== '1' && env.CROW_LOCAL_QA === '1' ? { demoCode: 'CROW-DEMO-2026-ONLY' } : {}) });
       }
       if (req.method !== 'POST') { res.setHeader('Allow', 'GET, POST'); return send(405, { message: 'Use GET or POST.' }); }
