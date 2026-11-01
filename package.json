@@ -1,0 +1,23 @@
+{
+  "name": "crowhq",
+  "version": "1.0.0",
+  "description": "An interactive pixel office and Malaysian neighbourhood for Bobby and Crow Marketing's AI employee characters: JIAYEE, GREENTEA, and MATTHEW.",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "build": "node --check api/team.js && node --check lib/team-room.js && node --check dist/chat.js && node --check dist/app.js && node --check dist/neighbourhood.js",
+    "dev": "node scripts/dev-server.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": "24.x"
+  },
+  "dependencies": {
+    "@vercel/blob": "2.8.2",
+    "@vercel/functions": "3.10.5",
+    "ai": "7.0.159"
+  }
+}
