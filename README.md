@@ -11,6 +11,7 @@ An interactive pixel office and Malaysian neighbourhood for Bobby and Crow Marke
 - Task assignments, a work board, owner approvals, activity log, and scratchpad.
 - Private founder group chat with live AI roles, direct @mentions, task runs, and review submissions.
 - Day/evening lighting, pause controls, responsive layouts, and an expanded map view.
+- Invitation-code entry for guests, with no member database or Supabase dependency.
 
 ## Run locally
 
@@ -21,7 +22,7 @@ npm ci
 npm run dev
 ```
 
-Open http://localhost:4173. Without a Blob credential, development uses an explicitly labelled local QA room with test responses. Production never uses that test provider. The static map also works with a simple file server, but the chat requires the API.
+Open http://localhost:4173. Local QA uses the explicitly labelled demonstration invitation `CROW-DEMO-2026-ONLY`; it is not a production code. The development server applies the same guest routing checks. Without a Blob credential, the employee room also has a separate local QA provider; no live AI model is called by that provider. Production never uses the test code or provider.
 
 Validate JavaScript syntax with:
 
@@ -32,13 +33,30 @@ npm run build
 
 ## Vercel deployment
 
-Connect this repository to Vercel and use `main` as the production branch. `vercel.json` installs dependencies, validates the application and serves `dist` plus the Node API in `api/team.js`. Vercel's Git integration automatically deploys pushes.
+Connect this repository to Vercel and use `main` as the production branch. `vercel.json` installs dependencies, validates the application, serves `dist` plus the Node APIs, and registers `proxy.js` as framework-independent routing middleware. Vercel's Git integration automatically deploys pushes.
 
-The map uses the Vercel project's access settings. The original ChatGPT Site's sign-in gate is platform-provided and is not part of these files.
+The main site uses the application invitation gate described below. The original ChatGPT Site's sign-in gate is platform-provided and is not part of these files.
+
+### Guest invitation access
+
+Share `https://crow-hq.vercel.app/` with friends. The existing Vercel domain is sufficient; a purchased custom domain is optional. Visitors enter the code that Bobby shares with them. No guest email, password, account, or member record is collected.
+
+Required server-only environment settings:
+
+- `CROW_INVITE_CODE`: a high-entropy founder-managed shared code.
+- `CROW_INVITE_SESSION_SECRET`: a cryptographically random signing key of at least 32 characters.
+
+Never place these values in client JavaScript, Git, or query strings. The founder can retrieve and copy the code from `/founder.html` on the existing Vercel-authenticated generated deployment host. The join page links to this founder desk; guests cannot read its invitation response.
+
+A valid code creates a signed, anonymous, HttpOnly/Secure/SameSite browser cookie lasting three days. Middleware checks that cookie before serving the map or its app assets. Sensitive API routes enforce their own access checks too. Logout clears the cookie. Changing the code or signing key and redeploying invalidates existing guest sessions. A missing or invalid configuration fails closed.
+
+The code is reusable and can be forwarded; it does not establish a person's identity. There is no attendance list, individual account revocation, or one-time-use invitation claim in this database-free version. The in-process failed-code cooldown is supplemental, not a distributed rate limiter. Hosting services may retain their ordinary request logs.
+
+Guest controls are limited to exploring the map and its animated characters in their own browser. Their map state is independent. This gate does not add shared multiplayer presence or community chat. Guest sessions cannot access employee conversations or paid AI runs.
 
 ### Founder room access
 
-This version deliberately serves private conversation data only on the exact generated deployment hostname supplied by `VERCEL_URL`. That hostname is protected by the project's existing Vercel Authentication. The public production alias receives no messages and no AI execution access; its Team chat tab offers a link to the protected room. Every new deployment has its own protected URL, while conversation data persists in the same private store.
+This version deliberately serves private employee conversation data only on the exact generated deployment hostname supplied by `VERCEL_URL`. That hostname is protected by the project's existing Vercel Authentication. Founder access there does not require a guest code. The main production alias receives no employee messages and no AI execution access, even with a valid guest session. Every new deployment has its own protected founder URL, while employee conversation data persists in the same private store.
 
 This relies on keeping Vercel Authentication enabled for generated deployments. Project members or anyone granted access to that protected deployment are trusted as founder-room participants in this version. There is no separate application membership system yet. Do not use the founder-room access mechanism as a community invite system.
 
@@ -63,9 +81,9 @@ Private conversation history and task submissions sync through the room. Map pre
 
 Loaded chat history can be exported from the chat header. Load earlier messages first for a longer export. The room blocks new runs at its explicit history limit rather than silently discarding older messages.
 
-## Invite-only community roadmap
+## Optional community roadmap
 
-For friends joining Crow HQ, add application-level accounts and invitations, membership-checked API routes, private realtime channels for chat and avatar presence, and distinct founder/member permissions. Keep the employee workroom, client briefs, approvals, and paid AI controls founder-only by default. This membership and multiplayer layer is not implemented in the current release.
+For real shared presence, add a realtime transport and explicit visitor identity. Persistent accounts, personal invitations, or community history would require additional state if wanted later. They are not required for the current invitation-code gate. No Supabase integration is used.
 
 ## Structure
 
@@ -81,6 +99,12 @@ For friends joining Crow HQ, add application-level accounts and invitations, mem
 | `lib/team-room.js` | Role briefs, job orchestration, privacy checks and request validation |
 | `lib/blob-room.js` | Private storage with optimistic concurrency |
 | `tests/team-room.test.mjs` | Access, CSRF, concurrency, task completion and failure tests |
+| `proxy.js`, `lib/invitation.js` | Map gate, signed guest sessions and founder/guest separation |
+| `api/invitation.js` | Code validation, session status, logout and protected invitation retrieval |
+| `dist/join.html`, `dist/join.css`, `dist/join.js` | Invitation entrance and pixel illustration |
+| `dist/founder.html`, `dist/founder.js` | Protected founder invitation desk |
+| `dist/access.js`, `dist/access.css` | Guest-facing controls and founder navigation |
+| `tests/invitation.test.mjs` | Entry, tampering, expiry, isolation and logout tests |
 | `vercel.json` | Static deployment settings |
 
 The pixel artwork is drawn in canvas with application code. The page also uses Google Fonts with local font fallbacks.

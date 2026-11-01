@@ -4,5 +4,9 @@
   "buildCommand": "npm run build",
   "installCommand": "npm ci --no-audit --no-fund",
   "outputDirectory": "dist",
-  "functions": { "api/team.js": { "maxDuration": 300, "includeFiles": "lib/**" } }
+  "functions": {
+    "api/team.js": { "maxDuration": 300, "includeFiles": "lib/**" },
+    "api/invitation.js": { "maxDuration": 15, "includeFiles": "lib/**" }
+  },
+  "proxy": { "entrypoint": "proxy.js" }
 }

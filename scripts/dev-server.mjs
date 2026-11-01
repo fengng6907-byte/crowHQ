@@ -4,6 +4,8 @@ import { extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHandler } from '../api/team.js';
 import { emptyRoom } from '../lib/team-room.js';
+import { createInvitationHandler } from '../api/invitation.js';
+import { accessDecision } from '../lib/invitation.js';
 
 const root = resolve(fileURLToPath(new URL('../dist/', import.meta.url)));
 let saved = emptyRoom(), revision = 0;
@@ -13,11 +15,23 @@ const memory = {
   isConflict: error => error.message === 'conflict',
 };
 const qa = process.env.CROW_LOCAL_QA === '1' || !process.env.BLOB_READ_WRITE_TOKEN;
+const guestEnv = qa ? { CROW_LOCAL_QA: '1', CROW_INVITE_CODE: 'CROW-DEMO-2026-ONLY', CROW_INVITE_SESSION_SECRET: 'only-for-local-qa-not-a-production-session-secret' } : process.env;
+const invitation = createInvitationHandler({ env: guestEnv });
 const team = qa ? createHandler({ store: memory, env: { CROW_LOCAL_QA: '1' }, background: promise => promise,
   generate: async ({ employee }) => { await new Promise(r => setTimeout(r, 450)); return { text: `LOCAL QA FIXTURE — ${employee.toUpperCase()}\n\nThis is a test response for checking the conversation, work board, and completion flow. No AI model was called. In production this message comes from the configured live AI model.`, model: 'local-qa-fixture' }; }
 }) : createHandler({ background: promise => promise });
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
+  const decision = accessDecision(new Request('http://' + req.headers.host + req.url, { headers: req.headers }), guestEnv);
+  if (!decision.allow) {
+    if (decision.redirect) { res.writeHead(decision.status, { Location: decision.redirect, 'Cache-Control': 'no-store' }); res.end(); }
+    else { res.writeHead(decision.status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ code: decision.code, privateUrl: decision.privateUrl })); }
+    return;
+  }
+  if (url.pathname === '/api/invitation') {
+    let body = ''; for await (const piece of req) { body += piece; if (body.length > 2048) { res.writeHead(413); res.end('{}'); return; } }
+    req.body = body || undefined; await invitation(req, res); return;
+  }
   if (url.pathname === '/api/team') {
     let body = ''; for await (const piece of req) { body += piece; if (body.length > 64000) { res.writeHead(413); res.end('{}'); return; } }
     req.body = body || undefined; await team(req, res); return;
