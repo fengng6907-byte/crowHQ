@@ -1,3 +1,4 @@
+import { cleanWardrobe } from '../lib/mall-catalog.js';
 import { founderCookieName, namedCookie, issueFounderSession, verifyFounderSession, readNamedCookie } from '../lib/founder-access.js';
 import { identity, readProfile, makeProfile, profileCookie, changeCommunity, cleanRoom, publicRoom, CommunityError } from '../lib/community.js';
 import { communityStore } from '../lib/community-store.js';
@@ -11,7 +12,7 @@ export function createCommunityHandler({ env = process.env, store = communitySto
       const at = now(), actor = identity(req, env, at), host = req.headers.host;
       if (!actor) return send(401, { message: 'Enter your invitation code to join.' });
       let profile = readProfile(req.headers.cookie, actor, env), snapshot;
-      if (actor.role === 'founder') profile = { ...actor, name: 'Bobby Ng', variant: 0, ...(typeof profile?.roomOpen==='boolean'?{roomOpen:profile.roomOpen}:{}) };
+      if (actor.role === 'founder') profile = { ...actor, name: 'Bobby Ng', variant: 0, wardrobe:cleanWardrobe(profile?.wardrobe), ...(typeof profile?.roomOpen==='boolean'?{roomOpen:profile.roomOpen}:{}) };
       if (req.method === 'GET') { const { room } = await store.read(); snapshot = publicRoom(cleanRoom(room, at), actor.id, at); }
       else if (req.method === 'POST') {
         if (req.headers.origin !== `${env.VERCEL === '1' ? 'https' : 'http'}://${host}` || !String(req.headers['content-type'] || '').startsWith('application/json')) return send(403, { message: 'Refresh the page before continuing.' });
@@ -20,13 +21,13 @@ export function createCommunityHandler({ env = process.env, store = communitySto
         if (typeof body === 'string' || Buffer.isBuffer(body)) { try { body = JSON.parse(body.toString()); } catch { return send(400, { message: 'Invalid request.' }); } }
         if (!body || Array.isArray(body) || JSON.stringify(body).length > 4096) return send(400, { message: 'Invalid request.' });
         if (!validCsrf(body.csrf, host, env.CROW_INVITE_SESSION_SECRET, at)) return send(403, { message: 'Refresh the page to reconnect.' });
-        if (!['profile', 'heartbeat', 'say', 'leave', 'break', 'return', 'order', 'visit', 'room-access'].includes(body.action)) return send(400, { message: 'Choose a valid action.' });
-        if (body.action === 'profile' && actor.role !== 'founder') profile = makeProfile(actor, body.name, body.variant);
+        if (!['profile', 'heartbeat', 'say', 'leave', 'break', 'return', 'order', 'visit', 'room-access', 'shop', 'equip', 'mall-walk'].includes(body.action)) return send(400, { message: 'Choose a valid action.' });
+        if (body.action === 'profile' && actor.role !== 'founder') profile = {...makeProfile(actor, body.name, body.variant),wardrobe:cleanWardrobe(profile?.wardrobe),...(typeof profile?.roomOpen==='boolean'?{roomOpen:profile.roomOpen}:{})};
         if (!profile) return send(409, { message: 'Choose your name and character first.' });
         snapshot = await changeCommunity(store, profile, body, at);
       } else { res.setHeader('Allow', 'GET, POST'); return send(405, { message: 'Use GET or POST.' }); }
       const ownPresence=snapshot.people.find(p=>p.id===actor.id);
-      if(profile&&ownPresence)profile={...profile,roomOpen:ownPresence.roomOpen};
+      if(profile&&ownPresence)profile={...profile,roomOpen:ownPresence.roomOpen,wardrobe:cleanWardrobe(ownPresence.wardrobe)};
       const cookies = [];
       if (verifyFounderSession(readNamedCookie(req.headers.cookie, founderCookieName(env)), env, at)) cookies.push(namedCookie(founderCookieName(env), issueFounderSession(env, at), env));
       if (profile) cookies.push(profileCookie(profile, env));

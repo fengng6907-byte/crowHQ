@@ -1,4 +1,6 @@
 import './spaces.js';
+import './mall.js';
+import { dressAppearance } from './mall-catalog.js';
 import { LOCATIONS, MENU, findMeal, messageScope } from './space-rules.js';
 'use strict';
 (() => {
@@ -19,11 +21,12 @@ import { LOCATIONS, MENU, findMeal, messageScope } from './space-rules.js';
   const now=()=>Date.now()+clockOffset;
   const isAway=p=>!!(p.break&&p.break.until>now());
   const awayText=p=>p.break?(p.break.kind==='lunch'?'Lunch':'Coffee')+' · '+Math.max(0,Math.ceil((p.break.until-now())/60000))+'m left':'Working';
-  const viewMySpot=()=>{showView('office');sceneView(window.CrowSpaces.sceneFor(self()?.spot));document.querySelector('#office').scrollIntoView({behavior:'smooth',block:'center'});};
+  const viewMySpot=()=>{showView('office');sceneView(window.CrowSpaces.sceneFor(self()?.spot));document.querySelector(self()?.spot?.startsWith('mall-')?'#mall-panel':'#office').scrollIntoView({behavior:'smooth',block:self()?.spot?.startsWith('mall-')?'start':'center'});};
   const uid = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), x => x.toString(16).padStart(2,'0')).join('');
   const tabId = uid();
   const hash = s => { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.codePointAt(0),16777619); return h >>> 0; };
-  function appearance(p) { if(p.role==='founder') return {...person('bobby'),name:p.name}; const h = hash(p.id + ':' + p.name + ':' + p.variant); return { id: 'human', name: p.name, skin:skins[h % skins.length], hair:hairs[(h>>>4)%hairs.length], shirt:shirts[(h>>>8)%shirts.length], pants:['#4f645c','#59596b','#776450'][(h>>>12)%3], longHair:!!(h&0x10000) }; }
+  function appearance(p) { return dressAppearance(baseAppearance(p),p.wardrobe); }
+  function baseAppearance(p) { if(p.role==='founder') return {...person('bobby'),name:p.name}; const h = hash(p.id + ':' + p.name + ':' + p.variant); return { id: 'human', name: p.name, skin:skins[h % skins.length], hair:hairs[(h>>>4)%hairs.length], shirt:shirts[(h>>>8)%shirts.length], pants:['#4f645c','#59596b','#776450'][(h>>>12)%3], longHair:!!(h&0x10000) }; }
   function paint(canvas,p) { if (!canvas || !p) return; const c=canvas.getContext('2d'); c.imageSmoothingEnabled=false;c.clearRect(0,0,canvas.width,canvas.height);drawSprite(c,appearance(p),canvas.width*.16,canvas.height*.05,canvas.width/24); }
   function preview() { paint(document.querySelector('#community-preview'),{ id:profile?.id||actorId,name:nameInput.value||'New friend',variant,role }); }
   function editProfile() { nameInput.value=profile?.name||'';variant=profile?.variant||0;document.querySelector('#community-cancel').classList.toggle('hidden',!profile);preview();if(!dialog.open)dialog.showModal();setTimeout(()=>nameInput.focus(),50); }
@@ -42,8 +45,8 @@ import { LOCATIONS, MENU, findMeal, messageScope } from './space-rules.js';
     document.querySelector('#community-text').disabled=!profile;document.querySelector('#community-send').disabled=!profile||sending;
     if(profile)paint(document.querySelector('#community-avatar'),profile);
     document.querySelector('#community-roster').innerHTML=peopleNow.map(p=>`<span class="community-member">${safe(p.name)}${p.id===profile?.id?' · YOU':''} ${p.role==='founder'?'✦':''}<span class="human-indicator"> / ${safe(isAway(p)?'AWAY · '+awayText(p):p.spot==='suite'&&(p.roomId||p.id)!==p.id?'Visiting '+(peopleNow.find(o=>o.id===p.roomId)?.name||'a neighbour'):locations[p.spot]?.[0]||'Here')}</span></span>`).join('')||'<span class="human-indicator">Be the first to settle in.</span>';
-    renderChat();renderDirectory();window.CrowSpaces.render();
-    const locationKey=self?self.spot+':'+(self.roomId||self.id):null;
+    renderChat();renderDirectory();window.CrowSpaces.render();window.CrowMall?.render();
+    const locationKey=self?self.spot+':'+(self.roomId||self.id)+':'+(self.shopId||''):null;
     if(self&&previousSpot!==locationKey){const was=previousSpot;previousSpot=locationKey;if(was!==null||self.spot!=='work')sceneView(window.CrowSpaces.sceneFor(self.spot));}
     for(const id of positions.keys())if(!peopleNow.some(p=>p.id===id))positions.delete(id);
   }
@@ -107,12 +110,13 @@ import { LOCATIONS, MENU, findMeal, messageScope } from './space-rules.js';
   }
   async function go(spot){if(await command('heartbeat',{spot})){viewMySpot();document.querySelector('#space-notice').textContent='';}}
   function draw(c,currentScene,dt) {
-    const visible=peopleNow.filter(p=>window.CrowSpaces.sceneFor(p.spot)===currentScene&&(p.spot!=='suite'||(p.roomId||p.id)===roomId())).sort((a,b)=>currentScene==='suite'?(a.id===roomId()?-1:b.id===roomId()?1:0):0);
+    const visible=peopleNow.filter(p=>window.CrowSpaces.sceneFor(p.spot)===currentScene&&(p.spot!=='suite'||(p.roomId||p.id)===roomId())&&(currentScene!=='mall'||(p.spot===self()?.spot&&(p.shopId||'')===(self()?.shopId||'')))).sort((a,b)=>currentScene==='suite'?(a.id===roomId()?-1:b.id===roomId()?1:0):0);
     const drawn=[],occupants={};
+    const sceneKey=currentScene==='suite'?roomId():currentScene==='mall'?self()?.spot+':'+(self()?.shopId||''):null;
     for(const p of visible){const index=occupants[p.spot]||0;occupants[p.spot]=index+1;const target=window.CrowSpaces.position(p,index);let a=positions.get(p.id);
-      if(!a||a.scene!==currentScene||a.roomKey!==(currentScene==='suite'?roomId():null)){const existing=p.id!==profile?.id||!!p.meal;const start=existing?target:currentScene==='town'?target:currentScene==='inside'?{x:970,y:814}:{x:500,y:600};a={x:start.x,y:start.y,path:[],target:'',scene:currentScene,roomKey:currentScene==='suite'?roomId():null};positions.set(p.id,a);}
+      if(!a||a.scene!==currentScene||a.roomKey!==sceneKey){const existing=p.id!==profile?.id||!!p.meal;const start=existing?target:currentScene==='town'?target:currentScene==='inside'?{x:970,y:814}:{x:500,y:600};a={x:start.x,y:start.y,path:[],target:'',scene:currentScene,roomKey:sceneKey};positions.set(p.id,a);}
       const key=target.x+','+target.y;
-      if(a.target!==key){a.target=key;const to=[target.x,target.y];a.path=currentScene==='town'?outdoorRoute([a.x,a.y],to):Math.hypot(a.x-target.x,a.y-target.y)<1?[]:currentScene==='inside'?[[a.x,814],[target.x,814],to]:currentScene==='suite'?[[500,500],[target.x,500],to]:[[a.x,610],[70,610],[70,target.y+62],[target.x,target.y+62],to];}
+      if(a.target!==key){a.target=key;const to=[target.x,target.y];a.path=currentScene==='town'?outdoorRoute([a.x,a.y],to):Math.hypot(a.x-target.x,a.y-target.y)<1?[]:currentScene==='inside'?[[a.x,814],[target.x,814],to]:currentScene==='mall'?window.CrowMall.route([a.x,a.y],to):currentScene==='suite'?[[500,500],[target.x,500],to]:[[a.x,610],[70,610],[70,target.y+62],[target.x,target.y+62],to];}
       const walking=a.path.length>0;if(walking){const [x,y]=a.path[0],dx=x-a.x,dy=y-a.y,d=Math.hypot(dx,dy),speed=145*dt;if(d<=speed||d<.01){a.x=x;a.y=y;a.path.shift();}else{a.x+=dx/d*speed;a.y+=dy/d*speed;}}
       const x=Math.round(a.x),y=Math.round(a.y),look=appearance(p),seated=target.seated&&!a.path.length;
       c.fillStyle=isAway(p)?'#d5ba84':p.id===profile?.id?'#bfd783':'#d3c799';c.fillRect(x-19,y-3,38,5);
@@ -133,7 +137,10 @@ import { LOCATIONS, MENU, findMeal, messageScope } from './space-rules.js';
       c.fillStyle='#627451';c.fillRect(bx-2,by-2,w+4,h+4);c.fillStyle='#fffef0';c.fillRect(bx,by,w,h);c.fillRect(x-4,by+h,9,6);c.fillRect(x-2,by+h+6,5,4);c.fillStyle='#435139';lines.forEach((s,i)=>c.fillText(s,bx+11,by+19+i*17));
     }
   }
-  window.CrowCommunity={draw,self,roomOwner,roomId,visit:visitRoom,openRooms,now,people:()=>peopleNow,founderStatus:()=>{const p=peopleNow.find(p=>p.role==='founder');return p?{label:isAway(p)?'AWAY · '+(p.break.kind==='lunch'?'LUNCH':'COFFEE'):(LOCATIONS[p.spot]?.name||'HERE').toUpperCase(),away:isAway(p)}:{label:'FOUNDER OFFLINE',away:false};},isJoined:()=>!!profile,go,hasFounder:()=>peopleNow.some(p=>p.role==='founder'),leave,focus:viewMySpot,
+  window.CrowCommunity={draw,self,appearance,
+    async mallWalk(nodeId){await command('mall-walk',{nodeId});},
+    async shop(shopId){if(await command('shop',{shopId})){viewMySpot();window.CrowMall.render();}},
+    async equip(itemId,slot){if(await command('equip',{itemId,slot})){window.CrowMall.render();toast(itemId?'Outfit updated. Your friends can see it too.':'Back to your original look.');return true;}return false;},roomOwner,roomId,visit:visitRoom,openRooms,now,people:()=>peopleNow,founderStatus:()=>{const p=peopleNow.find(p=>p.role==='founder');return p?{label:isAway(p)?'AWAY · '+(p.break.kind==='lunch'?'LUNCH':'COFFEE'):(LOCATIONS[p.spot]?.name||'HERE').toUpperCase(),away:isAway(p)}:{label:'FOUNDER OFFLINE',away:false};},isJoined:()=>!!profile,go,hasFounder:()=>peopleNow.some(p=>p.role==='founder'),leave,focus:viewMySpot,
     async order(mealId){if(await command('order',{mealId})){const p=self(),target=window.CrowSpaces.position(p,0);positions.set(p.id,{x:target.x,y:target.y,path:[],target:target.x+','+target.y,scene:window.CrowSpaces.sceneFor(p.spot)});viewMySpot();toast('Your pixel meal is being prepared.');}},
     async startBreak(kind,minutes){if(await command('break',{kind,minutes})){viewMySpot();toast('You’re marked away from your real-life desk.');}},
     async endBreak(){if(await command('return')){viewMySpot();toast('Welcome back. You’re available again.');}},
