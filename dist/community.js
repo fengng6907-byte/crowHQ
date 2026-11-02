@@ -97,7 +97,7 @@ import { LOCATIONS, MENU, findMeal, messageScope } from './space-rules.js';
       c.fillStyle='#627451';c.fillRect(bx-2,by-2,w+4,h+4);c.fillStyle='#fffef0';c.fillRect(bx,by,w,h);c.fillRect(x-4,by+h,9,6);c.fillRect(x-2,by+h+6,5,4);c.fillStyle='#435139';lines.forEach((s,i)=>c.fillText(s,bx+11,by+19+i*17));
     }
   }
-  window.CrowCommunity={draw,self,now,people:()=>peopleNow,isJoined:()=>!!profile,go,hasFounder:()=>peopleNow.some(p=>p.role==='founder'),leave,focus:viewMySpot,
+  window.CrowCommunity={draw,self,now,people:()=>peopleNow,founderStatus:()=>{const p=peopleNow.find(p=>p.role==='founder');return p?{label:isAway(p)?'AWAY · '+(p.break.kind==='lunch'?'LUNCH':'COFFEE'):(LOCATIONS[p.spot]?.name||'HERE').toUpperCase(),away:isAway(p)}:{label:'FOUNDER OFFLINE',away:false};},isJoined:()=>!!profile,go,hasFounder:()=>peopleNow.some(p=>p.role==='founder'),leave,focus:viewMySpot,
     async order(mealId){if(await command('order',{mealId})){const p=self(),target=window.CrowSpaces.position(p,0);positions.set(p.id,{x:target.x,y:target.y,path:[],target:target.x+','+target.y,scene:window.CrowSpaces.sceneFor(p.spot)});viewMySpot();toast('Your pixel meal is being prepared.');}},
     async startBreak(kind,minutes){if(await command('break',{kind,minutes})){viewMySpot();toast('You’re marked away from your real-life desk.');}},
     async endBreak(){if(await command('return')){viewMySpot();toast('Welcome back. You’re available again.');}},
