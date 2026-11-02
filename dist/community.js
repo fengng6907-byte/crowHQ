@@ -159,8 +159,8 @@ import { LOCATIONS, MENU, findMeal, messageScope, directScope } from './space-ru
       c.font='10px monospace';const label=p.name+(p.id===profile?.id?' · YOU':''),width=Math.min(195,c.measureText(label).width+18);c.fillStyle='#fffdeb';c.fillRect(x-width/2,y+9,width,17);c.fillStyle='#53674c';c.textAlign='center';c.fillText(label.slice(0,29),x,y+21);c.font='8px monospace';c.fillStyle=isAway(p)?'#94703d':'#60734f';c.fillText(isAway(p)?'AWAY · '+awayText(p):p.role==='founder'?'✦ FOUNDER · HUMAN':'HUMAN',x,y+36);c.textAlign='left';
     }
     for(const {p,a,x,y} of drawn){const m=chatMessages().filter(m=>m._delivery!=='failed'&&m.personId===p.id&&(m.scope||'community')==='community'&&now()-m.at<15000).at(-1);if(!m)continue;
-      c.font='12px monospace';const rows=bubbleRows(c,m.text),w=Math.max(60,...rows.map(r=>r.width))+22,h=rows.length*18+18,bx=Math.max(5,Math.min(cv.width-5-w,x-w/2)),by=y-63-h;
-      c.fillStyle='#627451';c.fillRect(bx-2,by-2,w+4,h+4);c.fillStyle='#fffef0';c.fillRect(bx,by,w,h);c.fillRect(x-4,by+h,9,6);c.fillRect(x-2,by+h+6,5,4);c.fillStyle='#435139';rows.forEach((row,i)=>paintBubbleRow(c,row,bx+11,by+19+i*18));
+      c.font='12px monospace';const rows=bubbleRows(c,m.text),w=Math.max(60,...rows.map(r=>r.width))+22,h=rows.length*25+18,bx=Math.max(5,Math.min(cv.width-5-w,x-w/2)),by=y-63-h;
+      c.fillStyle='#627451';c.fillRect(bx-2,by-2,w+4,h+4);c.fillStyle='#fffef0';c.fillRect(bx,by,w,h);c.fillRect(x-4,by+h,9,6);c.fillRect(x-2,by+h+6,5,4);c.fillStyle='#435139';rows.forEach((row,i)=>paintBubbleRow(c,row,bx+11,by+25+i*25));
     }
   }
   window.CrowCommunity={draw,self,appearance,openHuman,openDirect,
