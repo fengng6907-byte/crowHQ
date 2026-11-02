@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {EMOJIS,emojiTokens,richHtml,drawEmoji,bubbleRows,initEmojiPicker} from '../dist/emoji.js';
 test('mixed text and Unicode emoji render safely, preserving unsupported emoji',()=>{
- assert.equal(EMOJIS.length,10);
+ assert.equal(EMOJIS.length,34);
  assert.deepEqual(emojiTokens('Hi 😂❤️!'),[{text:'Hi '},{emoji:'laugh'},{emoji:'heart'},{text:'!'}]);
  const html=richHtml('<img onerror="alert(1)">😂');assert.ok(!html.includes('<img onerror'));assert.match(html,/&lt;img/);assert.match(html,/emoji-ducks\/joy.png/);
  assert.equal(richHtml('🦉'),'🦉');
@@ -12,7 +12,7 @@ test('all pixel icons draw and long speech bubbles remain bounded',()=>{
  globalThis.Image=class{complete=true;naturalWidth=200;};
  for(const e of EMOJIS)drawEmoji(ctx,e.id);
  delete globalThis.Image;
- assert.ok(calls.length===10);assert.equal(ctx.imageSmoothingEnabled,false);
+ assert.ok(calls.length===34);assert.equal(ctx.imageSmoothingEnabled,false);
  const rows=bubbleRows(ctx,'😂 hello '.repeat(100));assert.ok(rows.length<=3);assert.ok(rows[0].tokens.some(t=>t.emoji==='laugh'));
 });
 test('picker inserts at caret, respects maxlength, supports keyboard and closes without submitting',()=>{
@@ -21,10 +21,17 @@ test('picker inserts at caret, respects maxlength, supports keyboard and closes 
  const attrs={},classes=new Set(['hidden']);const toggle={setAttribute(k,v){attrs[k]=v;},contains(){return false;},focus(){}};
  const choice={dataset:{pickEmoji:'laugh'},focus(){}};
  const picker={classList:{add(x){classes.add(x);},contains(x){return classes.has(x);},toggle(x){if(classes.has(x)){classes.delete(x);return false;}classes.add(x);return true;}},querySelector(){return choice;},querySelectorAll(){return [choice];},addEventListener(k,v){handlers[k]=v;},contains(){return true;}};
- const nodes={'#emoji-picker':picker,'#emoji-toggle':toggle,'#community-text':input,'#emoji-grid':{},'#emoji-close':{}};
+ const nodes={'#emoji-picker':picker,'#emoji-toggle':toggle,'#community-text':input,'#emoji-grid':{},'#emoji-pack-tabs':{},'#emoji-close':{}};
  globalThis.document={querySelector:s=>nodes[s],querySelectorAll:()=>[],addEventListener(k,v){docHandlers[k]=v;}};
  const close=initEmojiPicker();toggle.onclick();assert.equal(attrs['aria-expanded'],'true');
+ let stopped=false;handlers.click({stopPropagation(){stopped=true;},target:{closest(selector){return selector==='[data-emoji-pack]'?{dataset:{emojiPack:'blackpink'}}:null;}}});assert.ok(stopped);assert.ok(!classes.has('hidden'));assert.match(nodes['#emoji-grid'].innerHTML,/bp-heart-eyes/);
  handlers.click({target:{closest:()=>choice}});assert.equal(input.value,'hello 😂');assert.ok(focused);assert.ok(classes.has('hidden'));
  input.maxLength=input.value.length;handlers.click({target:{closest:()=>choice}});assert.equal(input.value,'hello 😂');
  toggle.onclick();docHandlers.keydown({key:'Escape'});assert.ok(classes.has('hidden'));close();delete globalThis.document;
+});
+
+test('BLACKPINK pack has 24 distinct codes without replacing duck messages',()=>{
+ const pack=EMOJIS.filter(e=>e.pack==='blackpink');assert.equal(pack.length,24);assert.equal(new Set(pack.map(e=>e.value)).size,24);
+ assert.deepEqual(emojiTokens('😂 :bp-heart-eyes: ❤️'),[{emoji:'laugh'},{text:' '},{emoji:'bp-heart-eyes'},{text:' '},{emoji:'heart'}]);
+ assert.match(richHtml(':bp-heart-eyes:'),/emoji-blackpink\/heart-eyes.webp/);
 });

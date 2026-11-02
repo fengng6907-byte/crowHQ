@@ -16,3 +16,5 @@
 .community-dock #community-text{width:100%;min-width:0;max-width:100%;height:34px;box-sizing:border-box}
 .community-dock #emoji-toggle,.community-dock #community-send{display:grid;place-items:center;width:34px;min-width:34px;max-width:34px;height:34px;padding:4px;overflow:hidden}
 .community-dock #emoji-toggle img{display:block;width:24px;height:24px;min-width:0;max-width:24px;max-height:24px;object-fit:contain;image-rendering:pixelated;pointer-events:none}
+
+.emoji-pack-tabs{display:flex;gap:5px;margin-bottom:8px}.emoji-pack-tabs button{flex:1;min-width:0;border:1px solid #d1ddc1;background:#f5f6ed;color:#758064;padding:6px 7px;border-radius:3px;font-size:10px}.emoji-pack-tabs button[aria-pressed="true"]{background:#e4eccf;border-color:#a9bd8c;color:#435c36}.community-dock img.inline-emoji{object-fit:contain}
