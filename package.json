@@ -4,7 +4,7 @@
   "description": "An interactive pixel office and Malaysian neighbourhood for Bobby and Crow Marketing's AI employee characters: JIAYEE, GREENTEA, and MATTHEW.",
   "scripts": {
     "test": "node --test tests/*.test.mjs",
-    "build": "node scripts/build-spaces.mjs && node --check api/team.js && node --check lib/team-room.js && node --check dist/chat.js && node --check dist/app.js && node --check dist/neighbourhood.js && node --check proxy.js && node --check api/invitation.js && node --check lib/invitation.js && node --check dist/join.js && node --check dist/founder.js && node --check dist/access.js && node --check api/community.js && node --check lib/community.js && node --check lib/community-store.js && node --check dist/community.js && node --check lib/founder-access.js && node --check dist/spaces.js && node --check lib/space-rules.js && node --check dist/mall.js && node --check lib/mall-catalog.js && node --check lib/mall-directory.js && node --check lib/blob-state-store.js && node --check lib/invite-codes.js && node --check lib/invitation-store.js && node --check dist/chat-outbox.js",
+    "build": "node scripts/build-spaces.mjs && node --check api/team.js && node --check lib/team-room.js && node --check dist/chat.js && node --check dist/app.js && node --check dist/neighbourhood.js && node --check proxy.js && node --check api/invitation.js && node --check lib/invitation.js && node --check dist/join.js && node --check dist/founder.js && node --check dist/access.js && node --check api/community.js && node --check lib/community.js && node --check lib/community-store.js && node --check dist/community.js && node --check lib/founder-access.js && node --check dist/spaces.js && node --check lib/space-rules.js && node --check dist/mall.js && node --check lib/mall-catalog.js && node --check lib/mall-directory.js && node --check lib/blob-state-store.js && node --check lib/invite-codes.js && node --check lib/invitation-store.js && node --check dist/chat-outbox.js && node --check dist/emoji.js",
     "dev": "node scripts/dev-server.mjs"
   },
   "keywords": [],
@@ -21,3 +21,4 @@
     "ai": "7.0.159"
   }
 }
+

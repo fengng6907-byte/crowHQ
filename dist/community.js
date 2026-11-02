@@ -1,10 +1,12 @@
 import './spaces.js';
 import {createOutbox} from './chat-outbox.js';
 import './mall.js';
+import {richHtml,paintEmojiCanvases,initEmojiPicker,bubbleRows,paintBubbleRow} from './emoji.js';
 import { dressAppearance } from './mall-catalog.js';
 import { LOCATIONS, MENU, findMeal, messageScope, directScope } from './space-rules.js';
 'use strict';
 (() => {
+  const closeEmoji=initEmojiPicker();
   const panel = document.querySelector('#community-panel');
   const feed = document.querySelector('#community-feed'), status = document.querySelector('#community-status'), notice = document.querySelector('#community-notice');
   const dialog = document.querySelector('#community-profile'), nameInput = document.querySelector('#community-name');
@@ -48,7 +50,7 @@ import { LOCATIONS, MENU, findMeal, messageScope, directScope } from './space-ru
     if(self?.spot==='suite'&&(self.roomId||self.id)!==self.id){if(!visitingOption){visitingOption=document.createElement('option');visitingOption.value='visiting';placeSelect.prepend(visitingOption);}visitingOption.textContent='Visiting '+(roomOwner()?.name||'a neighbour')+'’s room';placeSelect.value='visiting';}
     else{visitingOption?.remove();placeSelect.value=self?.spot||'work';}
     document.querySelector('#community-edit').classList.toggle('hidden',role==='founder');
-    document.querySelector('#community-text').disabled=!profile;document.querySelector('#community-send').disabled=!canCompose();
+    document.querySelector('#community-text').disabled=!profile;document.querySelector('#community-send').disabled=!canCompose();document.querySelector('#emoji-toggle').disabled=!canCompose();
     if(profile)paint(document.querySelector('#community-avatar'),profile);
     document.querySelector('#community-roster').innerHTML=peopleNow.map(p=>`<button type="button" class="community-member" data-human="${safe(p.id)}" aria-label="Open ${safe(p.name)}’s human character">${safe(p.name)}${p.id===profile?.id?' · YOU':''} ${p.role==='founder'?'✦':''}<span class="human-indicator"> / ${safe(isAway(p)?'AWAY · '+awayText(p):p.spot==='suite'&&(p.roomId||p.id)!==p.id?'Visiting '+(peopleNow.find(o=>o.id===p.roomId)?.name||'a neighbour'):locations[p.spot]?.[0]||'Here')}</span></button>`).join('')||'<span class="human-indicator">Be the first to settle in.</span>';
     document.querySelectorAll('[data-human]').forEach(b=>b.onclick=()=>openHuman(b.dataset.human));
@@ -57,7 +59,7 @@ import { LOCATIONS, MENU, findMeal, messageScope, directScope } from './space-ru
     if(self&&previousSpot!==locationKey){const was=previousSpot;previousSpot=locationKey;if(was!==null||self.spot!=='work')sceneView(window.CrowSpaces.sceneFor(self.spot));}
     for(const id of positions.keys())if(!peopleNow.some(p=>p.id===id))positions.delete(id);
   }
-  function selectChannel(next,id){const input=document.querySelector('#community-text');drafts[draftKey()]=input.value;if(id!==undefined)peerId=id;channel=next;input.value=drafts[draftKey()]||'';collapsed=false;lastTranscript='';renderChat();feed.scrollTop=feed.scrollHeight;}
+  function selectChannel(next,id){closeEmoji();const input=document.querySelector('#community-text');drafts[draftKey()]=input.value;if(id!==undefined)peerId=id;channel=next;input.value=drafts[draftKey()]||'';collapsed=false;lastTranscript='';renderChat();feed.scrollTop=feed.scrollHeight;}
   function openDirect(id){if(id===profile?.id)return;selectChannel('direct',id);panel.scrollIntoView({behavior:'smooth',block:'nearest'});document.querySelector('#community-text').focus({preventScroll:true});}
   function renderChat() {
     const all=chatMessages(),publicMessages=all.filter(m=>(m.scope||'community')==='community'),scope=channel==='public'?'community':channel==='direct'?directScope(profile?.id||'',peerId):'suite:'+profile?.id;
@@ -71,14 +73,14 @@ import { LOCATIONS, MENU, findMeal, messageScope, directScope } from './space-ru
     document.querySelector('#chat-toggle').setAttribute('aria-expanded',String(!collapsed));document.querySelector('#chat-minimize').textContent=collapsed?'＋':'−';document.querySelector('#chat-minimize').setAttribute('aria-label',collapsed?'Expand chat':'Minimize chat');
     document.querySelectorAll('[data-chat-channel]').forEach(b=>{b.classList.toggle('active',b.dataset.chatChannel===channel);b.setAttribute('aria-pressed',String(b.dataset.chatChannel===channel));});
     document.querySelector('#community-chat-label').textContent=channel==='public'?'Public chat':channel==='direct'?(peerId?'◇ '+peerName(peerId):'Private messages'):'My private notes';
-    const input=document.querySelector('#community-text');input.placeholder=channel==='public'?'Say hello to everyone…':channel==='direct'?(peerId?'Message '+peerName(peerId)+' privately…':'Choose a person first…'):'A note only you can read…';input.disabled=!canCompose();document.querySelector('#community-send').disabled=!canCompose();
+    const input=document.querySelector('#community-text');input.placeholder=channel==='public'?'Say hello to everyone…':channel==='direct'?(peerId?'Message '+peerName(peerId)+' privately…':'Choose a person first…'):'A note only you can read…';input.disabled=!canCompose();document.querySelector('#community-send').disabled=!canCompose();document.querySelector('#emoji-toggle').disabled=!canCompose();
     document.querySelector('#chat-direct-tools').classList.toggle('hidden',channel!=='direct');
     const select=document.querySelector('#dm-recipient'),peerIds=new Set(peopleNow.filter(p=>p.id!==profile?.id).map(p=>p.id));for(const m of messages)if(m.scope?.startsWith('dm:'))peerIds.add(m.personId===profile?.id?m.recipientId:m.personId);if(peerId)peerIds.add(peerId);
     const options='<option value="">Choose a human…</option>'+[...peerIds].map(id=>`<option value="${safe(id)}">${safe(peerName(id))}${peopleNow.some(p=>p.id===id)?' · here':' · offline'}</option>`).join('');if(select.innerHTML!==options)select.innerHTML=options;select.value=peerId;
     const transcript=scope+JSON.stringify(visible);
     if(transcript!==lastTranscript){const nearBottom=feed.scrollHeight-feed.scrollTop-feed.clientHeight<45;lastTranscript=transcript;
-      feed.innerHTML=visible.length?visible.map(m=>`<article class="community-message ${m._delivery==='failed'?'message-failed':''}"><div class="community-message-head"><strong>${safe(m.name)}</strong><small>${m._delivery==='failed'?'Not sent':m._delivery?'Sending…':new Date(m.at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+(m.personId===profile?.id?' ✓':'')}</small></div><p>${safe(m.text)}</p>${m._delivery==='failed'?`<button type="button" data-chat-retry="${safe(m.id)}">Retry ↻</button><small class="delivery-error">${safe(m._error)}</small>`:''}</article>`).join(''):`<div class="community-empty">${channel==='public'?'Say hello. Everyone can read public chat,<br>wherever they are in Crow HQ.':channel==='direct'?(peerId?'Only you and '+safe(peerName(peerId))+' can read this conversation.':'Tap a human character or choose a person above.<br>Private messages stay between the two of you.'):'A quiet corner for your own thoughts.<br>Room visitors cannot read these notes.'}</div>`;
-      if(nearBottom||visible.at(-1)?.personId===profile?.id)feed.scrollTop=feed.scrollHeight;
+      feed.innerHTML=visible.length?visible.map(m=>`<article class="community-message ${m._delivery==='failed'?'message-failed':''}"><div class="community-message-head"><strong>${safe(m.name)}</strong><small>${m._delivery==='failed'?'Not sent':m._delivery?'Sending…':new Date(m.at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+(m.personId===profile?.id?' ✓':'')}</small></div><p>${richHtml(m.text)}</p>${m._delivery==='failed'?`<button type="button" data-chat-retry="${safe(m.id)}">Retry ↻</button><small class="delivery-error">${safe(m._error)}</small>`:''}</article>`).join(''):`<div class="community-empty">${channel==='public'?'Say hello. Everyone can read public chat,<br>wherever they are in Crow HQ.':channel==='direct'?(peerId?'Only you and '+safe(peerName(peerId))+' can read this conversation.':'Tap a human character or choose a person above.<br>Private messages stay between the two of you.'):'A quiet corner for your own thoughts.<br>Room visitors cannot read these notes.'}</div>`;
+      paintEmojiCanvases(feed);if(nearBottom||visible.at(-1)?.personId===profile?.id)feed.scrollTop=feed.scrollHeight;
     }
   }
   feed.onclick=e=>{const button=e.target.closest('[data-chat-retry]');if(button)outbox.retry(button.dataset.chatRetry);};
@@ -157,9 +159,8 @@ import { LOCATIONS, MENU, findMeal, messageScope, directScope } from './space-ru
       c.font='10px monospace';const label=p.name+(p.id===profile?.id?' · YOU':''),width=Math.min(195,c.measureText(label).width+18);c.fillStyle='#fffdeb';c.fillRect(x-width/2,y+9,width,17);c.fillStyle='#53674c';c.textAlign='center';c.fillText(label.slice(0,29),x,y+21);c.font='8px monospace';c.fillStyle=isAway(p)?'#94703d':'#60734f';c.fillText(isAway(p)?'AWAY · '+awayText(p):p.role==='founder'?'✦ FOUNDER · HUMAN':'HUMAN',x,y+36);c.textAlign='left';
     }
     for(const {p,a,x,y} of drawn){const m=chatMessages().filter(m=>m._delivery!=='failed'&&m.personId===p.id&&(m.scope||'community')==='community'&&now()-m.at<15000).at(-1);if(!m)continue;
-      c.font='12px monospace';const lines=[];let line='';for(const char of [...m.text]){if(c.measureText(line+char).width>205){lines.push(line);line='';}line+=char;if(lines.length===3)break;}if(line&&lines.length<3)lines.push(line);if([...m.text].length>lines.join('').length)lines[lines.length-1]=lines.at(-1).slice(0,-2)+'…';
-      const w=Math.max(60,...lines.map(s=>c.measureText(s).width))+22,h=lines.length*17+18,bx=Math.max(5,Math.min(cv.width-5-w,x-w/2)),by=y-63-h;
-      c.fillStyle='#627451';c.fillRect(bx-2,by-2,w+4,h+4);c.fillStyle='#fffef0';c.fillRect(bx,by,w,h);c.fillRect(x-4,by+h,9,6);c.fillRect(x-2,by+h+6,5,4);c.fillStyle='#435139';lines.forEach((s,i)=>c.fillText(s,bx+11,by+19+i*17));
+      c.font='12px monospace';const rows=bubbleRows(c,m.text),w=Math.max(60,...rows.map(r=>r.width))+22,h=rows.length*18+18,bx=Math.max(5,Math.min(cv.width-5-w,x-w/2)),by=y-63-h;
+      c.fillStyle='#627451';c.fillRect(bx-2,by-2,w+4,h+4);c.fillStyle='#fffef0';c.fillRect(bx,by,w,h);c.fillRect(x-4,by+h,9,6);c.fillRect(x-2,by+h+6,5,4);c.fillStyle='#435139';rows.forEach((row,i)=>paintBubbleRow(c,row,bx+11,by+19+i*18));
     }
   }
   window.CrowCommunity={draw,self,appearance,openHuman,openDirect,
@@ -177,3 +178,4 @@ import { LOCATIONS, MENU, findMeal, messageScope, directScope } from './space-ru
   if(window.CrowAccess){active=true;sync(true);}
   setInterval(()=>{const at=Date.now();if(at<nextPollAt)return;nextPollAt=at+(document.hidden?25000:pollMs);sync();},500);
 })();
+
