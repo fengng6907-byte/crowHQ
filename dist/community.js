@@ -12,9 +12,9 @@
   const uid = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), x => x.toString(16).padStart(2,'0')).join('');
   const tabId = uid();
   const hash = s => { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.codePointAt(0),16777619); return h >>> 0; };
-  function appearance(p) { const h = hash(p.id + ':' + p.name + ':' + p.variant); return { id: 'human', name: p.name, skin:skins[h % skins.length], hair:hairs[(h>>>4)%hairs.length], shirt:shirts[(h>>>8)%shirts.length], pants:['#4f645c','#59596b','#776450'][(h>>>12)%3], longHair:!!(h&0x10000) }; }
+  function appearance(p) { if(p.role==='founder') return {...person('bobby'),name:p.name}; const h = hash(p.id + ':' + p.name + ':' + p.variant); return { id: 'human', name: p.name, skin:skins[h % skins.length], hair:hairs[(h>>>4)%hairs.length], shirt:shirts[(h>>>8)%shirts.length], pants:['#4f645c','#59596b','#776450'][(h>>>12)%3], longHair:!!(h&0x10000) }; }
   function paint(canvas,p) { if (!canvas || !p) return; const c=canvas.getContext('2d'); c.imageSmoothingEnabled=false;c.clearRect(0,0,canvas.width,canvas.height);drawSprite(c,appearance(p),canvas.width*.16,canvas.height*.05,canvas.width/24); }
-  function preview() { paint(document.querySelector('#community-preview'),{ id:profile?.id||actorId,name:nameInput.value||'New friend',variant }); }
+  function preview() { paint(document.querySelector('#community-preview'),{ id:profile?.id||actorId,name:nameInput.value||'New friend',variant,role }); }
   function editProfile() { nameInput.value=profile?.name||'';variant=profile?.variant||0;document.querySelector('#community-cancel').classList.toggle('hidden',!profile);preview();if(!dialog.open)dialog.showModal();setTimeout(()=>nameInput.focus(),50); }
   function consume(data) {
     actorId=data.actorId||actorId;csrf=data.csrf||csrf;role=data.role||role;profile=data.profile;clockOffset=data.serverTime-Date.now();peopleNow=data.people||[];messages=data.messages||[];
@@ -23,6 +23,7 @@
     document.querySelector('#community-my-name').textContent=profile?.name||'Your seat is waiting';
     document.querySelector('#community-my-role').textContent=profile ? (role==='founder'?'FOUNDER':'INVITED GUEST')+' · HUMAN' : 'CHOOSE A NAME TO JOIN';
     document.querySelector('#community-place').value=self?.spot||'work';
+    document.querySelector('#community-edit').classList.toggle('hidden',role==='founder');
     document.querySelector('#community-text').disabled=!profile;document.querySelector('#community-send').disabled=!profile;
     if(profile)paint(document.querySelector('#community-avatar'),profile);
     document.querySelector('#community-roster').innerHTML=peopleNow.map(p=>`<span class="community-member">${safe(p.name)}${p.id===profile?.id?' · YOU':''} ${p.role==='founder'?'✦':''}<span class="human-indicator"> / ${safe(locations[p.spot]?.[0]||'Here')}</span></span>`).join('')||'<span class="human-indicator">Be the first to settle in.</span>';
@@ -36,7 +37,7 @@
   }
   async function sync(force=false) {
     if(!active||busy)return;busy=true;
-    try { if(profile&&(force||Date.now()-lastBeat>40000)){await api({action:'heartbeat'});lastBeat=Date.now();}else await api();notice.textContent='';if(!profile&&!dialog.open)editProfile(); }
+    try { if(profile&&(force||Date.now()-lastBeat>40000)){await api({action:'heartbeat'});lastBeat=Date.now();}else { await api(); if(profile && !lastBeat) { await api({action:'heartbeat'});lastBeat=Date.now(); } }notice.textContent='';if(!profile&&!dialog.open)editProfile(); }
     catch(e){status.textContent='RECONNECTING';notice.textContent=e.message;}
     finally{busy=false;}
   }
@@ -71,7 +72,7 @@
       c.fillStyle='#627451';c.fillRect(bx-2,by-2,w+4,h+4);c.fillStyle='#fffef0';c.fillRect(bx,by,w,h);c.fillRect(a.x-4,by+h,9,6);c.fillRect(a.x-2,by+h+6,5,4);c.fillStyle='#435139';lines.forEach((s,i)=>c.fillText(s,bx+11,by+19+i*17));
     }
   }
-  window.CrowCommunity={ draw,hasFounder:()=>peopleNow.some(p=>p.role==='founder'),leave,open:()=>{showView('office');panel.scrollIntoView({behavior:'smooth',block:'center'});} };
+  window.CrowCommunity={ draw,hasFounder:()=>peopleNow.some(p=>p.role==='founder'),leave,focus:()=>{showView('office');sceneView('town');document.querySelector('#office').scrollIntoView({behavior:'smooth',block:'center'});},open:()=>{showView('office');panel.scrollIntoView({behavior:'smooth',block:'center'});} };
   document.querySelector('#community-nav').onclick=()=>window.CrowCommunity.open();
   window.addEventListener('crow-access-ready',()=>{active=true;sync(true);});
   if(window.CrowAccess){active=true;sync(true);}

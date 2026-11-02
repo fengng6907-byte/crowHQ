@@ -4,9 +4,10 @@
   const desired = new URLSearchParams(location.search).get('next') || '/';
   async function bootstrap() {
     try { const response = await fetch('/api/invitation', { cache: 'no-store' }); const data = await response.json();
+      if (data.role === 'founder') { location.replace('/#founder'); return; }
       if (data.role === 'guest') { location.replace('/'); return; }
       const founder = document.querySelector('#founder-link');
-      if (data.founderUrl) { const u = new URL(data.founderUrl); if (u.protocol === 'https:' && u.hostname.endsWith('.vercel.app')) { founder.href = u.href; founder.classList.remove('hidden'); } }
+      if (data.founderLoginUrl === '/api/invitation?action=founder-start') { founder.href = data.founderLoginUrl; founder.classList.remove('hidden'); }
       if (!data.configured) { message.textContent = 'Bobby is preparing invitations. Please check back shortly.'; button.disabled = true; }
       if (data.demoCode) message.textContent = 'Local QA only · test code: ' + data.demoCode;
     } catch { message.textContent = 'The invitation desk could not connect. Refresh and try again.'; }

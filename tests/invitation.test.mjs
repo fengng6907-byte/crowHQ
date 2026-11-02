@@ -64,7 +64,7 @@ test('public session metadata never includes the invitation code, secret, or mem
 });
 test('logging out clears the session; unconfigured entry never grants access', async () => {
   const leave = response(); await createInvitationHandler({ env })(joinRequest({ action: 'leave' }), leave);
-  assert.match(leave.headers['Set-Cookie'], /Max-Age=0/);
+  assert.ok(leave.headers['Set-Cookie'].every(cookie=>cookie.includes('Max-Age=0')));
   const disabled = response(); await createInvitationHandler({ env: {} })(joinRequest({ action: 'join', code: env.CROW_INVITE_CODE }), disabled);
   // A local handler expects an HTTP origin; after matching that origin it must still fail closed.
   assert.equal(disabled.statusCode, 403);
