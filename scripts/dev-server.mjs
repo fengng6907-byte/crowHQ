@@ -49,6 +49,7 @@ const server = http.createServer(async (req, res) => {
     let body = ''; for await (const piece of req) { body += piece; if (body.length > 64000) { res.writeHead(413); res.end('{}'); return; } }
     req.body = body || undefined; await team(req, res); return;
   }
+  if (url.pathname === '/space-rules.js') { const content = await readFile(new URL('../lib/space-rules.js', import.meta.url)); res.writeHead(200, { 'Content-Type':'text/javascript', 'Cache-Control':'no-store' }); res.end(content); return; }
   const pathname = decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname);
   const path = resolve(root, '.' + pathname);
   if (!path.startsWith(root + sep) && path !== root) { res.writeHead(403); res.end(); return; }
