@@ -1,6 +1,7 @@
 'use strict';
 (() => {
   const input = document.querySelector('#invite-code'), button = document.querySelector('#join-submit'), message = document.querySelector('#join-message');
+  const requestId=Array.from(crypto.getRandomValues(new Uint8Array(24)),b=>b.toString(16).padStart(2,'0')).join('');
   const desired = new URLSearchParams(location.search).get('next') || '/';
   async function bootstrap() {
     try { const response = await fetch('/api/invitation', { cache: 'no-store' }); const data = await response.json();
@@ -15,7 +16,7 @@
   document.querySelector('#join-form').onsubmit = async event => {
     event.preventDefault(); if (!input.value.trim()) return;
     button.disabled = true; button.firstChild.textContent = 'Checking your invitation… '; message.textContent = '';
-    try { const response = await fetch('/api/invitation', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify({ action: 'join', code: input.value.trim(), next: desired }), signal: AbortSignal.timeout(15000) });
+    try { const response = await fetch('/api/invitation', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify({ action: 'join', code: input.value.trim(), requestId, next: desired }), signal: AbortSignal.timeout(15000) });
       const data = await response.json(); if (!response.ok) throw new Error(data.message || 'That invitation could not be checked.');
       const target = new URL(data.next || '/', location.origin); location.assign(target.origin === location.origin ? target.href : '/');
     } catch (error) { message.textContent = error.name === 'TimeoutError' ? 'That took a little too long. Your code is still here; try again.' : error.message; button.disabled = false; button.firstChild.textContent = 'Enter the neighbourhood '; }

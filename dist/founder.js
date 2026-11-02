@@ -1,16 +1,12 @@
 'use strict';
-(async () => {
-  const status = document.querySelector('#owner-status');
-  try {
-    const response = await fetch('/api/invitation?action=owner', { cache: 'no-store', credentials: 'same-origin' });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.message || 'The founder desk could not be opened.');
-    document.querySelector('#share-link').textContent = data.shareUrl;
-    document.querySelector('#share-code').textContent = data.inviteCode;
-    const copy = async (text, label) => { try { await navigator.clipboard.writeText(text); status.textContent = label; } catch { status.textContent = 'Select the text above to copy it.'; } };
-    document.querySelector('#copy-link').onclick = () => copy(data.shareUrl, 'Site link copied.');
-    document.querySelector('#copy-code').onclick = () => copy(data.inviteCode, 'Invitation code copied.');
-    document.querySelector('#copy-invitation').onclick = () => copy(`Come lepak at Crow HQ!\n\nOpen: ${data.shareUrl}\nInvitation code: ${data.inviteCode}\n\nEnter the code to join my little Malaysian neighbourhood. No account needed.`, 'Invitation message copied. You can send it to your friend.');
-    document.querySelector('#owner-content').classList.remove('hidden'); status.textContent = 'Your invitation is ready to share.';
-  } catch (error) { status.textContent = error.message; }
+(() => {
+ const status=document.querySelector('#owner-status');let current=null,busy=false;
+ function consume(data){if(current&&data.generation<current.generation)return;const changed=current&&data.generation!==current.generation;current={...current,...data};document.querySelector('#share-link').textContent=current.shareUrl;document.querySelector('#share-code').textContent=current.inviteCode;document.querySelector('#owner-content').classList.remove('hidden');if(changed)status.textContent='A fresh single-use code is ready. Existing guests stay signed in.';else if(!status.dataset.ready){status.dataset.ready='1';status.textContent='Ready for one new guest. The code refreshes after they join.';}}
+ async function load(){if(busy)return;busy=true;try{const response=await fetch('/api/invitation?action=owner',{cache:'no-store',credentials:'same-origin',signal:AbortSignal.timeout(18000)});const data=await response.json();if(!response.ok)throw Error(data.message||'The invitation desk could not connect.');consume(data);}catch(e){status.textContent=e.message;}finally{busy=false;}}
+ const copy=async(value,label)=>{if(!current)return;try{await navigator.clipboard.writeText(value);status.textContent=label;}catch{status.textContent='Select the text above to copy it.';}};
+ document.querySelector('#copy-link').onclick=()=>copy(current?.shareUrl,'Site link copied.');
+ document.querySelector('#copy-code').onclick=()=>copy(current?.inviteCode,'Single-use code copied. Send it to one friend.');
+ document.querySelector('#copy-invitation').onclick=()=>copy(`Come lepak at Crow HQ!\n\nOpen: ${current?.shareUrl}\nYour single-use invitation code: ${current?.inviteCode}\n\nEnter it once to join. Your visit is remembered on this browser.`, 'Invitation copied. Send this code to one friend.');
+ document.querySelector('#refresh-code').onclick=async()=>{if(!current||busy)return;busy=true;const button=document.querySelector('#refresh-code');button.disabled=true;try{const response=await fetch('/api/invitation',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'refresh',csrf:current.csrf}),signal:AbortSignal.timeout(20000)});const data=await response.json();if(!response.ok)throw Error(data.message||'Could not create a new code.');consume(data);status.textContent='New code ready. The previous unused code no longer works.';}catch(e){status.textContent=e.message;}finally{busy=false;button.disabled=false;}};
+ load();setInterval(()=>{if(!document.hidden)load();},5000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)load();});
 })();

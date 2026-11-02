@@ -1,5 +1,6 @@
 import http from 'node:http';
 import { createCommunityHandler } from '../api/community.js';
+import {emptyInvites} from '../lib/invite-codes.js';
 import { emptyCommunity } from '../lib/community.js';
 import { readFile } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
@@ -19,13 +20,16 @@ const memory = {
 const qa = process.env.CROW_LOCAL_QA === '1' || !process.env.BLOB_READ_WRITE_TOKEN;
 const guestEnv = qa ? { CROW_LOCAL_QA: '1', CROW_INVITE_CODE: 'CROW-DEMO-2026-ONLY', CROW_INVITE_SESSION_SECRET: 'only-for-local-qa-not-a-production-session-secret' } : process.env;
 let communitySaved = emptyCommunity(), communityRevision = 0;
+
 const communityMemory = {
  async read() { return { room: structuredClone(communitySaved), etag: String(communityRevision) }; },
  async write(room, etag) { if (etag !== String(communityRevision)) throw new Error('conflict'); communitySaved = structuredClone(room); communityRevision++; },
  isConflict: e => e.message === 'conflict',
 };
 const community = createCommunityHandler({ env: guestEnv, ...(qa ? { store: communityMemory } : {}) });
-const invitation = createInvitationHandler({ env: guestEnv });
+let inviteSaved=emptyInvites(),inviteRevision=0;
+const inviteMemory={async read(){return {room:structuredClone(inviteSaved),etag:String(inviteRevision)};},async write(room,etag){if(etag!==String(inviteRevision))throw Error('precondition');inviteSaved=structuredClone(room);inviteRevision++;},isConflict:e=>e.message==='precondition'};
+const invitation = createInvitationHandler({ env:guestEnv,...(qa?{store:inviteMemory}:{}) });
 const team = qa ? createHandler({ store: memory, env: { CROW_LOCAL_QA: '1' }, background: promise => promise,
   generate: async ({ employee }) => { await new Promise(r => setTimeout(r, 450)); return { text: `LOCAL QA FIXTURE — ${employee.toUpperCase()}\n\nThis is a test response for checking the conversation, work board, and completion flow. No AI model was called. In production this message comes from the configured live AI model.`, model: 'local-qa-fixture' }; }
 }) : createHandler({ background: promise => promise });

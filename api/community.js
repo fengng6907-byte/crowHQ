@@ -7,7 +7,8 @@ import { cookieValue, issueSession, sessionCookie, verifySession } from '../lib/
 export function createCommunityHandler({ env = process.env, store = communityStore, now = Date.now } = {}) {
   return async (req, res) => {
     res.setHeader('Cache-Control', 'private, no-store'); res.setHeader('Content-Type', 'application/json; charset=utf-8'); res.setHeader('X-Content-Type-Options', 'nosniff');
-    const send = (status, data) => { res.statusCode = status; res.end(JSON.stringify(data)); };
+    const started=performance.now();
+    const send = (status, data) => { res.setHeader('Server-Timing','community;dur='+Math.round(performance.now()-started));res.statusCode = status; res.end(JSON.stringify(data)); };
     try {
       const at = now(), actor = identity(req, env, at), host = req.headers.host;
       if (!actor) return send(401, { message: 'Enter your invitation code to join.' });
@@ -34,7 +35,7 @@ export function createCommunityHandler({ env = process.env, store = communitySto
       const guest = verifySession(cookieValue(req.headers.cookie, env), env, at);
       if (guest) cookies.push(sessionCookie(issueSession(env, at, guest.nonce), env));
       if (cookies.length) res.setHeader('Set-Cookie', cookies);
-      return send(200, { ...snapshot, profile, actorId: actor.id, role: actor.role, csrf: csrfToken(host, env.CROW_INVITE_SESSION_SECRET, at), serverTime: now(), pollMs: 5000 });
+      return send(200, { ...snapshot, profile, actorId: actor.id, role: actor.role, csrf: csrfToken(host, env.CROW_INVITE_SESSION_SECRET, at), serverTime: now(), pollMs: 1500 });
     } catch (e) { return send(e instanceof CommunityError ? e.status : 503, { message: e instanceof CommunityError ? e.message : 'The community room could not connect. Your message has not been sent; please try again.' }); }
   };
 }

@@ -1,6 +1,8 @@
+import {memoryInvites} from './helpers.mjs';
+const createInvitationHandler=options=>rawInvitationHandler({store:memoryInvites(),...options});
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createInvitationHandler } from '../api/invitation.js';
+import { createInvitationHandler as rawInvitationHandler } from '../api/invitation.js';
 import { createHandler } from '../api/team.js';
 import { createCommunityHandler } from '../api/community.js';
 import { accessDecision, cookieName, issueSession, verifySession } from '../lib/invitation.js';

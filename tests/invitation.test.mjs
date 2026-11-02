@@ -1,8 +1,10 @@
+import {memoryInvites} from './helpers.mjs';
+const createInvitationHandler=options=>rawInvitationHandler({store:memoryInvites(),...options});
 import { createHmac } from 'node:crypto';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { accessDecision, configured, cookieName, issueSession, matchesCode, safeNext, SESSION_SECONDS, sessionCookie, verifySession } from '../lib/invitation.js';
-import { createInvitationHandler } from '../api/invitation.js';
+import { createInvitationHandler as rawInvitationHandler } from '../api/invitation.js';
 import proxy from '../proxy.js';
 
 const env = { VERCEL: '1', VERCEL_URL: 'crow-private-test.vercel.app', CROW_INVITE_CODE: 'CROW-TEST-2345-ABCD-6789', CROW_INVITE_SESSION_SECRET: 'a-test-only-signing-key-at-least-32-characters-long' };

@@ -1,7 +1,10 @@
+import { invitationStore } from '../lib/invitation-store.js';
+import { currentInvite, refreshInvite, redeemInvite, InviteError } from '../lib/invite-codes.js';
+import { csrfToken, validCsrf } from '../lib/team-room.js';
 import { COMMUNITY_ORIGIN, isFounder, founderCookieName, claimCookieName, readNamedCookie, namedCookie, issueFounderSession, verifyFounderSession, newFounderChallenge, issueFounderClaim, verifyFounderClaim } from '../lib/founder-access.js';
 import { configured, cookieValue, founderUrl, issueSession, matchesCode, ownerHost, safeNext, sessionCookie, verifySession } from '../lib/invitation.js';
 
-export function createInvitationHandler({ env = process.env, now = Date.now } = {}) {
+export function createInvitationHandler({ env = process.env, now = Date.now, store = invitationStore } = {}) {
   // A bounded, per-process cooldown supplements the high-entropy code. It is not
   // a global rate limiter, and no persistent visitor records are created.
   const attempts = new Map();
@@ -42,7 +45,7 @@ export function createInvitationHandler({ env = process.env, now = Date.now } = 
         if (action === 'owner') {
           if (!owner) return send(403, { code: 'FOUNDER_ONLY', message: 'Sign in to the founder invitation desk.', founderUrl: ownerUrl });
           if (!configured(env)) return send(503, { message: 'Invitation access has not been configured yet.' });
-          return send(200, { role: 'founder', inviteCode: env.CROW_INVITE_CODE, shareUrl: 'https://crow-hq.vercel.app/', sessionDays: null });
+          return send(200, { role:'founder', ...await currentInvite(store,env), csrf:csrfToken(host,env.CROW_INVITE_SESSION_SECRET,now()), shareUrl:env.VERCEL==='1'?'https://crow-hq.vercel.app/':base+'/', sessionDays:null });
         }
         const claims = verifySession(cookieValue(req.headers.cookie, env), env, now());
         const rememberedFounder = verifyFounderSession(readNamedCookie(req.headers.cookie, founderCookieName(env)), env, now());
@@ -58,20 +61,32 @@ export function createInvitationHandler({ env = process.env, now = Date.now } = 
       if (typeof body === 'string' || Buffer.isBuffer(body)) { try { body = JSON.parse(body.toString()); } catch { return send(400, { message: 'Enter the code Bobby shared with you.' }); } }
       if (!body || typeof body !== 'object' || Array.isArray(body) || JSON.stringify(body).length > 2048) return send(400, { message: 'Enter a valid invitation code.' });
       if (body.action === 'leave') { res.setHeader('Set-Cookie', [sessionCookie('', env, 0), namedCookie(founderCookieName(env), '', env, 0), namedCookie(claimCookieName(env), '', env, 0)]); return send(200, { next: '/join.html' }); }
+      if(body.action==='refresh') {
+        if(!owner)return send(403,{message:'Only Bobby can create an invitation.'});
+        if(!validCsrf(body.csrf,host,env.CROW_INVITE_SESSION_SECRET,now()))return send(403,{message:'Refresh your invitation desk first.'});
+        return send(200,{...await refreshInvite(store,env),csrf:csrfToken(host,env.CROW_INVITE_SESSION_SECRET,now())});
+      }
       if (body.action !== 'join') return send(400, { message: 'Choose join or leave.' });
       if (!configured(env)) return send(503, { code: 'NOT_CONFIGURED', message: 'Bobby is preparing invitations. Please try again shortly.' });
       const ip = String(req.headers['x-real-ip'] || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown').slice(0, 120);
       const recent = attempts.get(ip);
       if (recent && recent.until > now() && recent.count >= 10) return send(429, { message: 'A few too many tries. Please wait 15 minutes or ask Bobby to check the code.' });
-      if (!matchesCode(body.code, env)) {
-        if (attempts.size > 5000) for (const [key, value] of attempts) if (value.until <= now()) attempts.delete(key);
-        if (attempts.size > 5000) attempts.clear();
-        attempts.set(ip, recent && recent.until > now() ? { ...recent, count: recent.count + 1 } : { count: 1, until: now() + 15 * 60 * 1000 });
-        return send(401, { message: 'That invitation code doesn’t match. Check the code Bobby sent you and try again.' });
+      const existing=verifySession(cookieValue(req.headers.cookie,env),env,now());
+      let nonce=existing?.nonce;
+      if(!nonce)try {
+        // The reusable fixture exists only in the explicit local QA environment.
+        if(env.VERCEL!=='1'&&env.CROW_LOCAL_QA==='1'&&matchesCode(body.code,env))nonce=undefined;
+        else nonce=await redeemInvite(store,env,body.code,body.requestId,now());
+      } catch(error) {
+        if(!(error instanceof InviteError))throw error;
+        if(error.status===401){
+          if(attempts.size>5000)attempts.clear();
+          attempts.set(ip,recent&&recent.until>now()?{...recent,count:recent.count+1}:{count:1,until:now()+15*60000});
+        }
+        return send(error.status,{message:error.message});
       }
       attempts.delete(ip);
-      const existing = verifySession(cookieValue(req.headers.cookie, env), env, now());
-      res.setHeader('Set-Cookie', sessionCookie(issueSession(env, now(), existing?.nonce), env));
+      res.setHeader('Set-Cookie',sessionCookie(issueSession(env,now(),nonce),env));
       return send(200, { next: safeNext(body.next), role: 'guest' });
     } catch { return send(503, { message: 'The invitation desk is temporarily unavailable. Please try again.' }); }
   };
